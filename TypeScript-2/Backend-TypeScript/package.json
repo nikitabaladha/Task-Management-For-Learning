@@ -1,0 +1,45 @@
+{
+  "name": "task_management_application_backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+  "test": "echo \"Error: no test specified\" && exit 1",
+  "st art": "node dist/server.js",
+  "dev": "nodemon dist/server.js",
+  "build": "tsc",
+  "watch": "tsc --watch"
+},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikitabaladha/Task_Management_Application_Backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nikitabaladha/Task_Management_Application_Backend/issues"
+  },
+  "homepage": "https://github.com/nikitabaladha/Task_Management_Application_Backend#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "joi": "^18.2.3",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.9.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/joi": "^17.2.2",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/mongoose": "^5.11.96",
+    "@types/node": "^26.2.0",
+    "nodemon": "^3.1.14",
+    "typescript": "^7.0.2"
+  }
+}
