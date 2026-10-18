@@ -9,6 +9,7 @@ import { Model, Types } from 'mongoose';
 import { Project } from './schemas/project.schema.js';
 import { CreateProjectDTO } from './dto/create-project.dto.js';
 import { ProjectResponse } from './interfaces/project-response.js';
+import { UserResponse } from '../users/interfaces/user.interface.js';
 import { UpdateProjectDTO } from './dto/update-project.dto.js';
 
 @Injectable()
@@ -43,16 +44,33 @@ export class ProjectsService {
   }
 
   async getProjects(): Promise<ProjectResponse[]> {
-    const projects = await this.projectModel.find().exec();
+    const projects = await this.projectModel
+      .find()
+      .populate<{
+        createdById: UserResponse | null;
+      }>('createdById', 'name email role')
+      .exec();
 
-    return projects.map((project): ProjectResponse => ({
-      _id: project._id.toString(),
-      name: project.name,
-      description: project.description,
-      createdById: project.createdById.toString(),
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
-    }));
+    return projects.map((project): ProjectResponse => {
+      const creator = project.createdById;
+
+      return {
+        _id: project._id.toString(),
+        name: project.name,
+        description: project.description,
+        createdById: creator ? creator._id.toString() : '',
+        createdBy: creator
+          ? {
+              _id: creator._id.toString(),
+              name: creator.name,
+              email: creator.email,
+              role: creator.role,
+            }
+          : undefined,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      };
+    });
   }
 
   async getProjectById(id: string): Promise<ProjectResponse> {
@@ -60,17 +78,32 @@ export class ProjectsService {
       throw new BadRequestException('Invalid project ID');
     }
 
-    const project = await this.projectModel.findById(id).exec();
+    const project = await this.projectModel
+      .findById(id)
+      .populate<{
+        createdById: UserResponse | null;
+      }>('createdById', 'name email role')
+      .exec();
 
     if (!project) {
       throw new NotFoundException('Project not found');
     }
 
+    const creator = project.createdById;
+
     return {
       _id: project._id.toString(),
       name: project.name,
       description: project.description,
-      createdById: project.createdById.toString(),
+      createdById: creator ? creator._id.toString() : '',
+      createdBy: creator
+        ? {
+            _id: creator._id.toString(),
+            name: creator.name,
+            email: creator.email,
+            role: creator.role,
+          }
+        : undefined,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     };

@@ -1,4 +1,6 @@
 import { TaskPriority, TaskStatus } from '../schemas/task.schema.js';
+import type { ProjectResponse } from '../../projects/interfaces/project-response.js';
+import type { UserResponse } from '../../users/interfaces/user.interface.js';
 
 export interface TaskResponse {
   _id: string;
@@ -7,7 +9,9 @@ export interface TaskResponse {
   status: TaskStatus;
   priority: TaskPriority;
   projectId: string;
+  project?: ProjectResponse;
   createdById: string;
+  createdBy?: UserResponse;
   createdAt: Date;
   updatedAt: Date;
 }

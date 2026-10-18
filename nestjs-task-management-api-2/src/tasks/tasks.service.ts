@@ -11,6 +11,20 @@ import { Project } from '../projects/schemas/project.schema.js';
 import { CreateTaskDTO } from './dto/create-task.dto.js';
 import { UpdateTaskDTO } from './dto/update-task.dto.js';
 import { TaskResponse } from './interfaces/task-response.js';
+import type { ProjectResponse } from '../projects/interfaces/project-response.js';
+import type { UserResponse } from '../users/interfaces/user.interface.js';
+
+type PopulatedUser = Omit<UserResponse, '_id'> & {
+  _id: Types.ObjectId;
+};
+
+type PopulatedProject = Omit<
+  ProjectResponse,
+  '_id' | 'createdById' | 'createdBy'
+> & {
+  _id: Types.ObjectId;
+  createdById: Types.ObjectId;
+};
 
 @Injectable()
 export class TasksService {
@@ -65,19 +79,52 @@ export class TasksService {
   }
 
   async getTasks(): Promise<TaskResponse[]> {
-    const tasks = await this.taskModel.find().exec();
+    const tasks = await this.taskModel
+      .find()
+      .populate<{ projectId: PopulatedProject | null }>(
+        'projectId',
+        'name description createdById createdAt updatedAt',
+      )
+      .populate<{ createdById: PopulatedUser | null }>(
+        'createdById',
+        'name email role',
+      )
+      .exec();
 
-    return tasks.map((task): TaskResponse => ({
-      _id: task._id.toString(),
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      priority: task.priority,
-      projectId: task.projectId.toString(),
-      createdById: task.createdById.toString(),
-      createdAt: task.createdAt,
-      updatedAt: task.updatedAt,
-    }));
+    return tasks.map((task): TaskResponse => {
+      const project = task.projectId;
+      const creator = task.createdById;
+
+      return {
+        _id: task._id.toString(),
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        projectId: project?._id.toString() ?? '',
+        project: project
+          ? {
+              _id: project._id.toString(),
+              name: project.name,
+              description: project.description,
+              createdById: project.createdById.toString(),
+              createdAt: project.createdAt,
+              updatedAt: project.updatedAt,
+            }
+          : undefined,
+        createdById: creator?._id.toString() ?? '',
+        createdBy: creator
+          ? {
+              _id: creator._id.toString(),
+              name: creator.name,
+              email: creator.email,
+              role: creator.role,
+            }
+          : undefined,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+      };
+    });
   }
 
   async getTaskById(id: string): Promise<TaskResponse> {
@@ -85,11 +132,24 @@ export class TasksService {
       throw new BadRequestException('Invalid task ID');
     }
 
-    const task = await this.taskModel.findById(id).exec();
+    const task = await this.taskModel
+      .findById(id)
+      .populate<{ projectId: PopulatedProject | null }>(
+        'projectId',
+        'name description createdById createdAt updatedAt',
+      )
+      .populate<{ createdById: PopulatedUser | null }>(
+        'createdById',
+        'name email role',
+      )
+      .exec();
 
     if (!task) {
       throw new NotFoundException('Task not found');
     }
+
+    const project = task.projectId;
+    const creator = task.createdById;
 
     return {
       _id: task._id.toString(),
@@ -97,8 +157,26 @@ export class TasksService {
       description: task.description,
       status: task.status,
       priority: task.priority,
-      projectId: task.projectId.toString(),
-      createdById: task.createdById.toString(),
+      projectId: project?._id.toString() ?? '',
+      project: project
+        ? {
+            _id: project._id.toString(),
+            name: project.name,
+            description: project.description,
+            createdById: project.createdById.toString(),
+            createdAt: project.createdAt,
+            updatedAt: project.updatedAt,
+          }
+        : undefined,
+      createdById: creator?._id.toString() ?? '',
+      createdBy: creator
+        ? {
+            _id: creator._id.toString(),
+            name: creator.name,
+            email: creator.email,
+            role: creator.role,
+          }
+        : undefined,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     };
