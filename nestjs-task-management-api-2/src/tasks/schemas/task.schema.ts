@@ -51,6 +51,14 @@ export class Task {
   })
   createdById!: Types.ObjectId;
 
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+    required: false,
+    default: null,
+  })
+  assignedToId?: Types.ObjectId | null;
+
   createdAt!: Date;
   updatedAt!: Date;
 }

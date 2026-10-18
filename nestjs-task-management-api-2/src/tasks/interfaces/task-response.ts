@@ -12,6 +12,8 @@ export interface TaskResponse {
   project?: ProjectResponse;
   createdById: string;
   createdBy?: UserResponse;
+  assignedToId: string | null;
+  assignedTo?: UserResponse;
   createdAt: Date;
   updatedAt: Date;
 }

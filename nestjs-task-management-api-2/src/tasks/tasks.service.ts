@@ -2,12 +2,14 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
 import { Task, TaskPriority, TaskStatus } from './schemas/task.schema.js';
 import { Project } from '../projects/schemas/project.schema.js';
+import { User } from '../users/schemas/user.schema.js';
 import { CreateTaskDTO } from './dto/create-task.dto.js';
 import { UpdateTaskDTO } from './dto/update-task.dto.js';
 import { TaskResponse } from './interfaces/task-response.js';
@@ -34,12 +36,20 @@ export class TasksService {
 
     @InjectModel(Project.name)
     private readonly projectModel: Model<Project>,
+
+    @InjectModel(User.name)
+    private readonly userModel: Model<User>,
   ) {}
 
   async createTask(
     createTaskDTO: CreateTaskDTO,
     createdById: string,
+    role: UserResponse['role'],
   ): Promise<TaskResponse> {
+    if (createTaskDTO.assignedToId !== undefined && role !== 'Admin') {
+      throw new ForbiddenException('Only Admin can assign tasks');
+    }
+
     if (!Types.ObjectId.isValid(createdById)) {
       throw new BadRequestException('Invalid creator ID');
     }
@@ -56,6 +66,24 @@ export class TasksService {
       throw new NotFoundException('Project not found');
     }
 
+    let assignedToObjectId: Types.ObjectId | null = null;
+
+    if (createTaskDTO.assignedToId !== undefined) {
+      if (!Types.ObjectId.isValid(createTaskDTO.assignedToId)) {
+        throw new BadRequestException('Invalid assigned user ID');
+      }
+
+      const assignedUser = await this.userModel
+        .findById(createTaskDTO.assignedToId)
+        .exec();
+
+      if (!assignedUser) {
+        throw new NotFoundException('Assigned user not found');
+      }
+
+      assignedToObjectId = new Types.ObjectId(createTaskDTO.assignedToId);
+    }
+
     const newTask = await this.taskModel.create({
       title: createTaskDTO.title,
       description: createTaskDTO.description,
@@ -63,6 +91,7 @@ export class TasksService {
       priority: createTaskDTO.priority ?? TaskPriority.MEDIUM,
       projectId: new Types.ObjectId(createTaskDTO.projectId),
       createdById: new Types.ObjectId(createdById),
+      assignedToId: assignedToObjectId,
     });
 
     return {
@@ -73,6 +102,7 @@ export class TasksService {
       priority: newTask.priority,
       projectId: newTask.projectId.toString(),
       createdById: newTask.createdById.toString(),
+      assignedToId: newTask.assignedToId?.toString() ?? null,
       createdAt: newTask.createdAt,
       updatedAt: newTask.updatedAt,
     };
@@ -89,11 +119,16 @@ export class TasksService {
         'createdById',
         'name email role',
       )
+      .populate<{ assignedToId: PopulatedUser | null }>(
+        'assignedToId',
+        'name email role',
+      )
       .exec();
 
     return tasks.map((task): TaskResponse => {
       const project = task.projectId;
       const creator = task.createdById;
+      const assignedUser = task.assignedToId;
 
       return {
         _id: task._id.toString(),
@@ -101,6 +136,7 @@ export class TasksService {
         description: task.description,
         status: task.status,
         priority: task.priority,
+
         projectId: project?._id.toString() ?? '',
         project: project
           ? {
@@ -112,6 +148,7 @@ export class TasksService {
               updatedAt: project.updatedAt,
             }
           : undefined,
+
         createdById: creator?._id.toString() ?? '',
         createdBy: creator
           ? {
@@ -121,6 +158,17 @@ export class TasksService {
               role: creator.role,
             }
           : undefined,
+
+        assignedToId: assignedUser?._id.toString() ?? null,
+        assignedTo: assignedUser
+          ? {
+              _id: assignedUser._id.toString(),
+              name: assignedUser.name,
+              email: assignedUser.email,
+              role: assignedUser.role,
+            }
+          : undefined,
+
         createdAt: task.createdAt,
         updatedAt: task.updatedAt,
       };
@@ -142,6 +190,10 @@ export class TasksService {
         'createdById',
         'name email role',
       )
+      .populate<{ assignedToId: PopulatedUser | null }>(
+        'assignedToId',
+        'name email role',
+      )
       .exec();
 
     if (!task) {
@@ -150,6 +202,7 @@ export class TasksService {
 
     const project = task.projectId;
     const creator = task.createdById;
+    const assignedUser = task.assignedToId;
 
     return {
       _id: task._id.toString(),
@@ -157,6 +210,7 @@ export class TasksService {
       description: task.description,
       status: task.status,
       priority: task.priority,
+
       projectId: project?._id.toString() ?? '',
       project: project
         ? {
@@ -168,6 +222,7 @@ export class TasksService {
             updatedAt: project.updatedAt,
           }
         : undefined,
+
       createdById: creator?._id.toString() ?? '',
       createdBy: creator
         ? {
@@ -177,23 +232,134 @@ export class TasksService {
             role: creator.role,
           }
         : undefined,
+
+      assignedToId: assignedUser?._id.toString() ?? null,
+      assignedTo: assignedUser
+        ? {
+            _id: assignedUser._id.toString(),
+            name: assignedUser.name,
+            email: assignedUser.email,
+            role: assignedUser.role,
+          }
+        : undefined,
+
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     };
   }
 
+  async getMyTasks(userId: string): Promise<TaskResponse[]> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    const tasks = await this.taskModel
+      .find({
+        assignedToId: new Types.ObjectId(userId),
+      })
+      .populate<{ projectId: PopulatedProject | null }>(
+        'projectId',
+        'name description createdById createdAt updatedAt',
+      )
+      .populate<{ createdById: PopulatedUser | null }>(
+        'createdById',
+        'name email role',
+      )
+      .populate<{ assignedToId: PopulatedUser | null }>(
+        'assignedToId',
+        'name email role',
+      )
+      .exec();
+
+    return tasks.map((task): TaskResponse => {
+      const project = task.projectId;
+      const creator = task.createdById;
+      const assignedUser = task.assignedToId;
+
+      return {
+        _id: task._id.toString(),
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+
+        projectId: project?._id.toString() ?? '',
+        project: project
+          ? {
+              _id: project._id.toString(),
+              name: project.name,
+              description: project.description,
+              createdById: project.createdById.toString(),
+              createdAt: project.createdAt,
+              updatedAt: project.updatedAt,
+            }
+          : undefined,
+
+        createdById: creator?._id.toString() ?? '',
+        createdBy: creator
+          ? {
+              _id: creator._id.toString(),
+              name: creator.name,
+              email: creator.email,
+              role: creator.role,
+            }
+          : undefined,
+
+        assignedToId: assignedUser?._id.toString() ?? null,
+        assignedTo: assignedUser
+          ? {
+              _id: assignedUser._id.toString(),
+              name: assignedUser.name,
+              email: assignedUser.email,
+              role: assignedUser.role,
+            }
+          : undefined,
+
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+      };
+    });
+  }
+
   async updateTask(
     id: string,
     updateTaskDTO: UpdateTaskDTO,
+    role: UserResponse['role'],
   ): Promise<TaskResponse> {
+    // Only Admin can change task assignment.
+    if (updateTaskDTO.assignedToId !== undefined && role !== 'Admin') {
+      throw new ForbiddenException('Only Admin can assign tasks');
+    }
+
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid task ID');
     }
 
+    if (updateTaskDTO.assignedToId !== undefined) {
+      if (!Types.ObjectId.isValid(updateTaskDTO.assignedToId)) {
+        throw new BadRequestException('Invalid assigned user ID');
+      }
+
+      const assignedUser = await this.userModel
+        .findById(updateTaskDTO.assignedToId)
+        .exec();
+
+      if (!assignedUser) {
+        throw new NotFoundException('Assigned user not found');
+      }
+    }
+
+    const updateData = {
+      ...updateTaskDTO,
+      ...(updateTaskDTO.assignedToId !== undefined && {
+        assignedToId: new Types.ObjectId(updateTaskDTO.assignedToId),
+      }),
+    };
+
     const updatedTask = await this.taskModel
       .findByIdAndUpdate(
         id,
-        { $set: updateTaskDTO },
+        { $set: updateData },
         { new: true, runValidators: true },
       )
       .exec();
@@ -210,6 +376,41 @@ export class TasksService {
       priority: updatedTask.priority,
       projectId: updatedTask.projectId.toString(),
       createdById: updatedTask.createdById.toString(),
+      assignedToId: updatedTask.assignedToId?.toString() ?? null,
+      createdAt: updatedTask.createdAt,
+      updatedAt: updatedTask.updatedAt,
+    };
+  }
+
+  async updateTaskStatus(
+    id: string,
+    status: TaskStatus,
+  ): Promise<TaskResponse> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid task ID');
+    }
+
+    const updatedTask = await this.taskModel
+      .findByIdAndUpdate(
+        id,
+        { $set: { status } },
+        { new: true, runValidators: true },
+      )
+      .exec();
+
+    if (!updatedTask) {
+      throw new NotFoundException('Task not found');
+    }
+
+    return {
+      _id: updatedTask._id.toString(),
+      title: updatedTask.title,
+      description: updatedTask.description,
+      status: updatedTask.status,
+      priority: updatedTask.priority,
+      projectId: updatedTask.projectId.toString(),
+      createdById: updatedTask.createdById.toString(),
+      assignedToId: updatedTask.assignedToId?.toString() ?? null,
       createdAt: updatedTask.createdAt,
       updatedAt: updatedTask.updatedAt,
     };
@@ -234,6 +435,7 @@ export class TasksService {
       priority: deletedTask.priority,
       projectId: deletedTask.projectId.toString(),
       createdById: deletedTask.createdById.toString(),
+      assignedToId: deletedTask.assignedToId?.toString() ?? null,
       createdAt: deletedTask.createdAt,
       updatedAt: deletedTask.updatedAt,
     };

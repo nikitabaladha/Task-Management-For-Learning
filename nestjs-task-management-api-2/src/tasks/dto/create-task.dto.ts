@@ -28,4 +28,8 @@ export class CreateTaskDTO {
   @IsMongoId()
   @IsNotEmpty()
   projectId!: string;
+
+  @IsOptional()
+  @IsMongoId()
+  assignedToId?: string;
 }

@@ -7,6 +7,7 @@ import {
   Get,
   Param,
   Put,
+  Patch,
   Delete,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { UserResponse } from '../users/interfaces/user.interface.js';
+import { UpdateTaskStatusDTO } from './dto/update-task-status.dto.js';
 
 type AuthenticatedRequest = Request & {
   user: {
@@ -44,6 +46,7 @@ export class TasksController {
     const task: TaskResponse = await this.tasksService.createTask(
       createTaskDTO,
       request.user.sub,
+      request.user.role,
     );
 
     return {
@@ -62,6 +65,23 @@ export class TasksController {
     return {
       success: true,
       message: 'Tasks fetched successfully',
+      data: tasks,
+    };
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('Admin', 'User')
+  @Get('my-tasks')
+  async getMyTasks(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ApiResponseDTO<TaskResponse[]>> {
+    const tasks: TaskResponse[] = await this.tasksService.getMyTasks(
+      request.user.sub,
+    );
+
+    return {
+      success: true,
+      message: 'My tasks fetched successfully',
       data: tasks,
     };
   }
@@ -87,15 +107,36 @@ export class TasksController {
   async updateTask(
     @Param('id') id: string,
     @Body() updateTaskDTO: UpdateTaskDTO,
+    @Req() request: AuthenticatedRequest,
   ): Promise<ApiResponseDTO<TaskResponse>> {
     const task: TaskResponse = await this.tasksService.updateTask(
       id,
       updateTaskDTO,
+      request.user.role,
     );
 
     return {
       success: true,
       message: 'Task updated successfully',
+      data: task,
+    };
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('Admin', 'User')
+  @Patch(':id/status')
+  async updateTaskStatus(
+    @Param('id') id: string,
+    @Body() updateTaskStatusDTO: UpdateTaskStatusDTO,
+  ): Promise<ApiResponseDTO<TaskResponse>> {
+    const task: TaskResponse = await this.tasksService.updateTaskStatus(
+      id,
+      updateTaskStatusDTO.status,
+    );
+
+    return {
+      success: true,
+      message: 'Task status updated successfully',
       data: task,
     };
   }
