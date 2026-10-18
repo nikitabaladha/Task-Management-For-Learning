@@ -22,6 +22,7 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { UserResponse } from '../users/interfaces/user.interface.js';
 import { UpdateTaskStatusDTO } from './dto/update-task-status.dto.js';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 type AuthenticatedRequest = Request & {
   user: {
@@ -31,6 +32,8 @@ type AuthenticatedRequest = Request & {
   };
 };
 
+@ApiTags('Tasks')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')
 export class TasksController {

@@ -20,6 +20,7 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { UserResponse } from '../users/interfaces/user.interface.js';
 import { UpdateProjectDTO } from './dto/update-project.dto.js';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 type AuthenticatedRequest = Request & {
   user: {
@@ -29,6 +30,8 @@ type AuthenticatedRequest = Request & {
   };
 };
 
+@ApiTags('Projects')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('projects')
 export class ProjectsController {
